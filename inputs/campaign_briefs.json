@@ -1,0 +1,37 @@
+[
+  {
+    "label": "linkedin-real-estate-dallas",
+    "platform": "LinkedIn",
+    "audience": "Real estate agents and small real estate teams in Dallas, Texas",
+    "offer": "A 24/7 AI lead follow-up system that responds in under 60 seconds and books appointments automatically",
+    "brief": "Create a high-converting LinkedIn campaign promoting an AI lead follow-up system for real estate agents in Dallas."
+  },
+  {
+    "label": "instagram-real-estate-dallas",
+    "platform": "Instagram",
+    "audience": "Independent real estate agents in Dallas who struggle to follow up with new leads quickly",
+    "offer": "An AI assistant that replies to new leads instantly and books calls automatically",
+    "brief": "Create an Instagram campaign for Dallas real estate agents focused on saving time and reducing missed lead opportunities."
+  },
+  {
+    "label": "email-hvac-local-services",
+    "platform": "Email",
+    "audience": "Owners of HVAC companies with 5 to 20 employees in Texas",
+    "offer": "An AI follow-up workflow that answers inbound leads, reactivates old leads, and books estimate calls",
+    "brief": "Create a short outbound email campaign for HVAC business owners who need faster lead response and better booking rates."
+  },
+  {
+    "label": "facebook-fitness-studios",
+    "platform": "Facebook",
+    "audience": "Boutique fitness studio owners who want more intro-call bookings from website and ad leads",
+    "offer": "An automated lead nurture system that follows up by text and email and books consultations",
+    "brief": "Create a Facebook campaign promoting an automated lead nurture system for boutique fitness studios."
+  },
+  {
+    "label": "linkedin-photo-video-services",
+    "platform": "LinkedIn",
+    "audience": "Owners of small photo and video production companies serving local business clients",
+    "offer": "An AI-driven lead intake and follow-up workflow that qualifies inquiries and books discovery calls",
+    "brief": "Create a professional LinkedIn campaign targeting photo and video service business owners who want faster lead handling and better conversion."
+  }
+]
