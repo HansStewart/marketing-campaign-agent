@@ -158,3 +158,30 @@ The project is designed to demonstrate:
 - realistic marketing‑campaign behavior grounded in a specific business use case
 
 It serves as a reusable pattern for building stateful AI workflows around strategy, content generation, and automated quality control.
+
+## Setup
+
+1. Create and activate a virtual environment
+
+```bash
+python -m venv venv
+source venv/Scripts/activate
+```
+
+2. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+3. Create a `.env` file in the project root
+
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+4. Run the app
+
+```bash
+python main.py
+```
