@@ -8,11 +8,16 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from config import DEFAULT_LOCATION, DEFAULT_MAX_REVISIONS, DEFAULT_PLATFORM
+from config import (
+    DEFAULT_LOCATION,
+    DEFAULT_MAX_REVISIONS,
+    DEFAULT_PLATFORM,
+    PLATFORM_TONE_MAP,
+    SUPPORTED_PLATFORMS,
+)
 from graph import build_graph
 
 load_dotenv()
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,7 +54,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--platform",
         default=DEFAULT_PLATFORM,
-        help="Target platform (default: LinkedIn)",
+        choices=SUPPORTED_PLATFORMS,
+        help=f"Target platform. Options: {', '.join(SUPPORTED_PLATFORMS)}",
     )
     parser.add_argument(
         "--audience",
@@ -60,6 +66,11 @@ def parse_args() -> argparse.Namespace:
         "--offer",
         default="A 24/7 AI lead follow-up system that responds in under 60 seconds and books appointments automatically",
         help="Campaign offer description",
+    )
+    parser.add_argument(
+        "--brief",
+        default="Create a high-converting campaign promoting an AI lead follow-up system for real estate agents.",
+        help="Campaign brief",
     )
     return parser.parse_args()
 
@@ -75,14 +86,17 @@ def run_campaign_agent():
     validate_environment()
     args = parse_args()
 
+    tone = PLATFORM_TONE_MAP.get(args.platform, "Professional, modern, confident")
+    logger.info("Starting campaign agent — platform: %s", args.platform)
+
     app = build_graph()
 
     initial_state = {
-        "campaign_brief": "Create a high-converting campaign promoting an AI lead follow-up system for real estate agents.",
+        "campaign_brief": args.brief,
         "target_audience": args.audience,
         "offer": args.offer,
         "platform": args.platform,
-        "tone": "Professional, modern, confident, conversion-focused",
+        "tone": tone,
         "research_insights": None,
         "messaging_angles": None,
         "copy_variants": None,
@@ -93,6 +107,7 @@ def run_campaign_agent():
         "human_feedback": None,
         "best_variant": None,
         "best_variant_score": None,
+        "email_sequence": None,
         "revision_count": 0,
         "max_revisions": DEFAULT_MAX_REVISIONS,
         "metadata": {},
@@ -105,6 +120,7 @@ def run_campaign_agent():
     logger.info("Approved by human:      %s", result.get("human_approved"))
     logger.info("Revision count:         %s", result.get("revision_count"))
     logger.info("Scores:                 %s", result.get("evaluation_scores"))
+    logger.info("Email sequence:         %s emails generated", len(result.get("email_sequence") or []))
     logger.info("Metadata:               %s", result.get("metadata"))
 
     save_run(result)
