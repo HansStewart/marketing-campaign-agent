@@ -185,3 +185,22 @@ OPENAI_API_KEY=your_openai_api_key_here
 ```bash
 python main.py
 ```
+
+## Usage
+
+Run the app:
+
+```bash
+python main.py
+```
+
+When you see:
+
+```text
+Decision - approve or reject? (a/r):
+```
+
+Type:
+
+- `a` to approve the selected variant
+- `r` to reject it
