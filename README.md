@@ -184,6 +184,21 @@ To view traces:
 
 ---
 
+### What you see in LangSmith
+
+Each run appears as a LangGraph trace with child nodes:
+
+- `strategist` – LangChain prompt + GPT‑4o‑mini call for research & angles
+- `copywriter` – LangChain prompt + GPT‑4o‑mini call for 3 copy variants
+- `evaluator` – LangChain prompt + GPT‑4o‑mini call for scoring/selection
+- `human_review` – human decision and feedback captured in state
+- `finalize` – summary and final metadata
+
+This makes it clear that:
+- **LangChain** powers the LLM calls and prompts,
+- **LangGraph** orchestrates the node flow,
+- **LangSmith** traces the entire workflow for debugging and optimization.
+
 ## Development
 
 ### Linting
