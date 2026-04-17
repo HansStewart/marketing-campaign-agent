@@ -13,6 +13,7 @@ from graph import build_graph
 
 load_dotenv()
 
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -28,7 +29,8 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 def validate_environment():
     required_keys = [
         "OPENAI_API_KEY",
-        "LANGCHAIN_API_KEY",
+        "LANGSMITH_API_KEY",
+        "LANGSMITH_TRACING",
     ]
 
     missing = [key for key in required_keys if not os.getenv(key)]
@@ -37,6 +39,9 @@ def validate_environment():
         raise ValueError(
             f"Missing required environment variables: {', '.join(missing)}"
         )
+
+    project = os.getenv("LANGSMITH_PROJECT", "default")
+    logger.info("LangSmith tracing enabled — project: %s", project)
 
 
 def parse_args() -> argparse.Namespace:
