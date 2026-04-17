@@ -1,12 +1,23 @@
-from typing import Dict, Any
-from langchain_openai import ChatOpenAI
+import os
+from typing import Any, Dict
+
+from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 
+from schemas import CopyOutput, EvaluationOutput, StrategyOutput
 from state import CampaignState
-from schemas import StrategyOutput, CopyOutput, EvaluationOutput
+
+load_dotenv()
 
 
-base_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+def get_base_llm() -> ChatOpenAI:
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY not found in environment")
+    return ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+
+
+base_llm = get_base_llm()
 
 strategy_llm = base_llm.with_structured_output(StrategyOutput)
 copy_llm = base_llm.with_structured_output(CopyOutput)

@@ -1,12 +1,13 @@
 import os
+
 from dotenv import load_dotenv
 from openai import OpenAI
+
+from graph import build_graph
 
 load_dotenv()
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-
-from graph import build_graph
 
 
 def validate_environment():
