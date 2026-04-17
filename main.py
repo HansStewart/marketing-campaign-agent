@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from config import DEFAULT_LOCATION, DEFAULT_MAX_REVISIONS, DEFAULT_PLATFORM
 from graph import build_graph
 
 load_dotenv()
@@ -31,9 +32,9 @@ def run_campaign_agent():
 
     initial_state = {
         "campaign_brief": "Create a high-converting campaign promoting an AI lead follow-up system for real estate agents.",
-        "target_audience": "Real estate agents and small real estate teams in Dallas, Texas",
+        "target_audience": f"Real estate agents and small real estate teams in {DEFAULT_LOCATION}",
         "offer": "A 24/7 AI lead follow-up system that responds in under 60 seconds and books appointments automatically",
-        "platform": "LinkedIn",
+        "platform": DEFAULT_PLATFORM,
         "tone": "Professional, modern, confident, conversion-focused",
         "research_insights": None,
         "messaging_angles": None,
@@ -46,7 +47,7 @@ def run_campaign_agent():
         "best_variant": None,
         "best_variant_score": None,
         "revision_count": 0,
-        "max_revisions": 4,
+        "max_revisions": DEFAULT_MAX_REVISIONS,
         "metadata": {},
     }
 

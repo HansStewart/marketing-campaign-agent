@@ -1,14 +1,12 @@
 import os
 import sys
 
-import pytest
-
 # Add project root to sys.path so we can import state.py
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from state import CampaignState
+from state import CampaignState  # noqa: E402
 
 
 def test_initial_state_keys():

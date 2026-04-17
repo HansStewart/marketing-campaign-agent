@@ -1,0 +1,7 @@
+# config.py
+MODEL_NAME = "gpt-4o-mini"
+MODEL_TEMPERATURE = 0.7
+
+DEFAULT_MAX_REVISIONS = 4
+DEFAULT_PLATFORM = "LinkedIn"
+DEFAULT_LOCATION = "Dallas, Texas"
