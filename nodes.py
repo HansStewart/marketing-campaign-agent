@@ -1,3 +1,10 @@
+"""LangChain-powered LangGraph nodes for the marketing campaign agent.
+
+Each node is a pure function over `CampaignState` and is orchestrated by
+LangGraph in `graph.py`. Nodes use LangChain's ChatOpenAI + ChatPromptTemplate
+and structured outputs defined in `schemas.py`.
+"""
+
 import os
 from typing import Any, Dict
 
@@ -5,6 +12,7 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
+from config import MODEL_NAME, MODEL_TEMPERATURE
 from schemas import CopyOutput, EvaluationOutput, StrategyOutput
 from state import CampaignState
 
@@ -14,7 +22,7 @@ load_dotenv()
 def get_base_llm() -> ChatOpenAI:
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY not found in environment")
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+    return ChatOpenAI(model=MODEL_NAME, temperature=MODEL_TEMPERATURE)
 
 
 base_llm = get_base_llm()
