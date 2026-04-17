@@ -164,3 +164,10 @@ This repo is working end to end with:
 - Tighten prompt quality based on evaluator feedback
 - Add richer evaluators for subject line quality and platform fit
 - Expand output formats for more channels
+
+## v1.1 ideas
+
+- Expand campaign_briefs.json to 20–30 examples
+- Add evaluator for subject line quality
+- Add platform-specific constraints (e.g. character limits)
+- Add CLI flag to run partial dataset eval locally
