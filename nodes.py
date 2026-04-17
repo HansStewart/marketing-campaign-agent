@@ -1,9 +1,4 @@
-"""LangChain-powered LangGraph nodes for the marketing campaign agent.
-
-Each node is a pure function over `CampaignState` and is orchestrated by
-LangGraph in `graph.py`. Nodes use LangChain's ChatOpenAI + ChatPromptTemplate
-and structured outputs defined in `schemas.py`.
-"""
+"""LangChain-powered LangGraph nodes for the marketing campaign agent."""
 
 import os
 from typing import Any, Dict
@@ -33,17 +28,24 @@ def get_base_llm() -> ChatOpenAI:
 
 def strategist_node(state: CampaignState) -> Dict[str, Any]:
     """Research insights and messaging angles using LangChain + ChatOpenAI."""
-    llm = get_base_llm()
+    llm = get_base_llm().bind(max_completion_tokens=700)
     structured_llm = llm.with_structured_output(StrategyOutput)
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a senior marketing strategist specializing in B2B campaigns.
-Your goal is to provide actionable research insights and 3 distinct messaging angles.
+        ("system", """You are a senior B2B marketing strategist.
 
-Rules:
-- Insights must be specific, not generic
-- Each angle must be differentiated and target a different pain point
-- Focus on the platform and audience provided"""),
+Your job is to generate concise, useful campaign planning inputs.
+
+Hard rules:
+- Return exactly 3 research insights.
+- Return exactly 3 messaging angles.
+- Each research insight must be under 22 words.
+- Each messaging angle must be under 16 words.
+- Avoid generic advice.
+- Each angle must focus on a different pain point or outcome.
+- Tailor the ideas to the exact target audience, offer, and platform.
+- Use realistic business language only.
+- No hype phrases."""),
         ("human", """Campaign Brief: {campaign_brief}
 Target Audience: {target_audience}
 Offer: {offer}
@@ -72,7 +74,7 @@ Tone: {tone}"""),
 
 def copywriter_node(state: CampaignState) -> Dict[str, Any]:
     """Generate 3 campaign copy variants using LangChain + ChatOpenAI."""
-    llm = get_base_llm()
+    llm = get_base_llm().bind(max_completion_tokens=1200)
     structured_llm = llm.with_structured_output(CopyOutput)
 
     platform_style = PLATFORM_STYLE_MAP.get(
@@ -108,20 +110,21 @@ def copywriter_node(state: CampaignState) -> Dict[str, Any]:
         )
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert marketing copywriter specializing in B2B campaigns.
+        ("system", """You are an expert B2B marketing copywriter.
 
-Rules:
-- No exclamation marks
-- No generic phrases like 'game-changer', 'revolutionary', 'unlock'
-- Realistic, specific, benefit-driven copy
-- Each variant must use a different opening and angle
-- Adapt tone, formatting, and cadence for the specified platform
-- End with a clear, low-friction CTA
-
-Additional constraints:
-- Do not include personal data beyond what is in the brief
-- Do not generate discriminatory, hateful, or misleading content
-- Keep all claims realistic and verifiable
+Hard rules:
+- Return exactly 3 variants.
+- Each variant must be 45 to 110 words.
+- No exclamation marks.
+- No hashtags unless the platform clearly requires them.
+- No generic hype phrases like "game-changer", "revolutionary", "unlock", "skyrocket", "transform your business".
+- No placeholders like [Your Name], [Company], or [Insert Link].
+- Make each variant meaningfully different in opening and angle.
+- Keep claims realistic and specific.
+- End each variant with a clear, low-friction CTA.
+- Adapt formatting and cadence to the target platform.
+- Use plain business language, not ad-speak.
+- Avoid repeating the same CTA wording across all 3 variants.
 
 Platform style instructions:
 {platform_style}"""),
@@ -143,7 +146,7 @@ Write 3 distinct campaign copy variants."""),
         "offer": state["offer"],
         "platform": state["platform"],
         "tone": state["tone"],
-        "research_insights": state.get("research_insights", ""),
+        "research_insights": "\n".join(state.get("research_insights") or []),
         "messaging_angles": "\n".join(state.get("messaging_angles") or []),
         "feedback_section": feedback_section,
         "platform_style": platform_style,
@@ -160,19 +163,31 @@ Write 3 distinct campaign copy variants."""),
 
 def evaluator_node(state: CampaignState) -> Dict[str, Any]:
     """Score and select the best copy variant using LangChain + ChatOpenAI."""
-    llm = get_base_llm()
+    llm = get_base_llm().bind(max_completion_tokens=700)
     structured_llm = llm.with_structured_output(EvaluationOutput)
 
+    variants = state.get("copy_variants") or []
     variants_text = "\n\n".join([
         f"Variant {i + 1}:\n{v}"
-        for i, v in enumerate(state.get("copy_variants") or [])
+        for i, v in enumerate(variants)
     ])
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a senior marketing evaluator.
-Score each variant from 1-10 across: hook strength, clarity, relevance, offer presentation, CTA quality.
-Return a single average score per variant.
-Approve if the best score is 8.0 or above."""),
+        ("system", """You are a senior B2B marketing evaluator.
+
+Evaluate each variant based on:
+- hook strength
+- clarity
+- audience relevance
+- offer presentation
+- CTA quality
+
+Hard rules:
+- Return exactly one score per provided variant.
+- Score each variant from 1.0 to 10.0.
+- Return a concise feedback summary under 60 words total.
+- Approve if the best score is 8.0 or above.
+- Pick the single best variant index based on overall effectiveness."""),
         ("human", """Platform: {platform}
 Target Audience: {target_audience}
 Offer: {offer}
@@ -191,7 +206,6 @@ Score each variant and select the best one."""),
         "variants": variants_text,
     })
 
-    variants = state.get("copy_variants") or []
     best_index = result.best_variant_index
     if best_index >= len(variants):
         best_index = 0
@@ -282,8 +296,8 @@ def human_review_node(state: CampaignState) -> Dict[str, Any]:
 
 
 def email_sequence_node(state: CampaignState) -> Dict[str, Any]:
-    """Generate a 3-email follow-up sequence from the approved best variant using LangChain."""
-    llm = get_base_llm()
+    """Generate a concise 3-email follow-up sequence from the approved best variant."""
+    llm = get_base_llm().bind(max_completion_tokens=800)
     structured_llm = llm.with_structured_output(EmailSequenceOutput)
 
     platform_style = PLATFORM_STYLE_MAP.get(
@@ -293,19 +307,29 @@ def email_sequence_node(state: CampaignState) -> Dict[str, Any]:
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are an expert B2B email copywriter.
+
 Based on an approved campaign variant, write a 3-email follow-up sequence.
 
-Rules:
-- Email 1 (Day 1): warm intro, reference the main value proposition
-- Email 2 (Day 3): provide a specific insight, stat, or story that builds credibility
-- Email 3 (Day 7): low-friction final CTA, address the main objection
-- No exclamation marks
-- No generic phrases
-- Each email must have a compelling, specific subject line
-- Keep emails concise (under 150 words each)
-- Maintain the tone provided
+Hard rules:
+- Return exactly 3 emails.
+- Email 1 send_day must be 1.
+- Email 2 send_day must be 3.
+- Email 3 send_day must be 7.
+- Each email body must be 60 to 120 words.
+- Each subject line must be under 7 words.
+- Do not use exclamation marks anywhere.
+- Do not use generic hype phrases like "game-changer", "revolutionary", "unlock", "skyrocket", or "transform your business".
+- Do not start more than one subject line with the same first word.
+- Do not use placeholders like [Your Name], [Company], or [Insert Link].
+- Do not use hashtags.
+- Use exactly one clear, low-friction CTA sentence per email.
+- Use plain text only.
+- Avoid repeating the same closing phrasing across the 3 emails.
+- Keep the sequence specific to the audience and offer.
+- Keep language realistic and concrete.
 
 Use the originating platform context to shape the voice and angle of the emails.
+
 Platform style reference:
 {platform_style}"""),
         ("human", """Approved Campaign Variant:
@@ -316,7 +340,7 @@ Target Audience: {target_audience}
 Offer: {offer}
 Tone: {tone}
 
-Generate a 3-email follow-up sequence."""),
+Generate a 3-email follow-up sequence that follows all rules above."""),
     ])
 
     chain = prompt | structured_llm
