@@ -1,6 +1,6 @@
 """Pydantic structured output schemas for LangChain nodes in the campaign agent."""
 
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, Field
 
