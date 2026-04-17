@@ -120,7 +120,10 @@ def run_campaign_agent():
     logger.info("Approved by human:      %s", result.get("human_approved"))
     logger.info("Revision count:         %s", result.get("revision_count"))
     logger.info("Scores:                 %s", result.get("evaluation_scores"))
-    logger.info("Email sequence:         %s emails generated", len(result.get("email_sequence") or []))
+    logger.info(
+        "Email sequence:         %s emails generated",
+        len(result.get("email_sequence") or []),
+    )
     logger.info("Metadata:               %s", result.get("metadata"))
 
     save_run(result)

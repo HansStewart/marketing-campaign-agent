@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
-from config import MODEL_NAME, MODEL_TEMPERATURE
+from config import MODEL_NAME, MODEL_TEMPERATURE, PLATFORM_STYLE_MAP
 from schemas import (
     CopyOutput,
     EmailSequenceOutput,
@@ -75,6 +75,11 @@ def copywriter_node(state: CampaignState) -> Dict[str, Any]:
     llm = get_base_llm()
     structured_llm = llm.with_structured_output(CopyOutput)
 
+    platform_style = PLATFORM_STYLE_MAP.get(
+        state["platform"],
+        "Write in a professional, concise marketing style.",
+    )
+
     feedback_section = ""
     if state.get("human_feedback"):
         feedback_section = f"\n\nRevision feedback to incorporate: {state['human_feedback']}"
@@ -89,13 +94,16 @@ Rules:
 - No generic phrases like 'game-changer', 'revolutionary', 'unlock'
 - Realistic, specific, benefit-driven copy
 - Each variant must use a different opening and angle
-- Adapt tone and length for the specified platform
+- Adapt tone, formatting, and cadence for the specified platform
 - End with a clear, low-friction CTA
 
 Additional constraints:
 - Do not include personal data beyond what is in the brief
 - Do not generate discriminatory, hateful, or misleading content
-- Keep all claims realistic and verifiable"""),
+- Keep all claims realistic and verifiable
+
+Platform style instructions:
+{platform_style}"""),
         ("human", """Campaign Brief: {campaign_brief}
 Target Audience: {target_audience}
 Offer: {offer}
@@ -117,6 +125,7 @@ Write 3 distinct campaign copy variants."""),
         "research_insights": state.get("research_insights", ""),
         "messaging_angles": "\n".join(state.get("messaging_angles") or []),
         "feedback_section": feedback_section,
+        "platform_style": platform_style,
     })
 
     metadata = dict(state.get("metadata", {}))
@@ -203,23 +212,28 @@ def human_review_node(state: CampaignState) -> Dict[str, Any]:
             "human_feedback": None,
             "metadata": metadata,
         }
-    else:
-        feedback = input("Enter revision feedback: ").strip()
-        metadata = dict(state.get("metadata", {}))
-        metadata["human_review_completed"] = True
-        metadata["human_decision"] = "rejected"
-        return {
-            "human_approved": False,
-            "human_feedback": feedback,
-            "revision_count": state.get("revision_count", 0) + 1,
-            "metadata": metadata,
-        }
+
+    feedback = input("Enter revision feedback: ").strip()
+    metadata = dict(state.get("metadata", {}))
+    metadata["human_review_completed"] = True
+    metadata["human_decision"] = "rejected"
+    return {
+        "human_approved": False,
+        "human_feedback": feedback,
+        "revision_count": state.get("revision_count", 0) + 1,
+        "metadata": metadata,
+    }
 
 
 def email_sequence_node(state: CampaignState) -> Dict[str, Any]:
     """Generate a 3-email follow-up sequence from the approved best variant using LangChain."""
     llm = get_base_llm()
     structured_llm = llm.with_structured_output(EmailSequenceOutput)
+
+    platform_style = PLATFORM_STYLE_MAP.get(
+        state["platform"],
+        "Write in a professional, concise marketing style.",
+    )
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are an expert B2B email copywriter.
@@ -233,7 +247,11 @@ Rules:
 - No generic phrases
 - Each email must have a compelling, specific subject line
 - Keep emails concise (under 150 words each)
-- Maintain the tone and platform context provided"""),
+- Maintain the tone provided
+
+Use the originating platform context to shape the voice and angle of the emails.
+Platform style reference:
+{platform_style}"""),
         ("human", """Approved Campaign Variant:
 {best_variant}
 
@@ -252,6 +270,7 @@ Generate a 3-email follow-up sequence."""),
         "target_audience": state["target_audience"],
         "offer": state["offer"],
         "tone": state["tone"],
+        "platform_style": platform_style,
     })
 
     email_list = [
