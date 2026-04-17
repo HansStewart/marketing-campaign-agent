@@ -16,6 +16,7 @@ class CampaignState(TypedDict):
     evaluation_feedback: Optional[str]
     approved: bool
 
+    auto_approve: bool
     human_approved: Optional[bool]
     human_feedback: Optional[str]
     human_reject_reason: Optional[str]

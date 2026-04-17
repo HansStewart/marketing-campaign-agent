@@ -78,6 +78,11 @@ def parse_args() -> argparse.Namespace:
         ),
         help="Campaign brief",
     )
+    parser.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="Skip human review and automatically approve the best evaluated variant",
+    )
     return parser.parse_args()
 
 
@@ -94,6 +99,7 @@ def run_campaign_agent():
 
     tone = PLATFORM_TONE_MAP.get(args.platform, "Professional, modern, confident")
     logger.info("Starting campaign agent — platform: %s", args.platform)
+    logger.info("Auto-approve mode: %s", args.auto_approve)
 
     app = build_graph()
 
@@ -109,6 +115,7 @@ def run_campaign_agent():
         "evaluation_scores": None,
         "evaluation_feedback": None,
         "approved": False,
+        "auto_approve": args.auto_approve,
         "human_approved": None,
         "human_feedback": None,
         "human_reject_reason": None,
@@ -126,6 +133,7 @@ def run_campaign_agent():
 
     logger.info("Run complete.")
     logger.info("Approved by evaluator:  %s", result.get("approved"))
+    logger.info("Auto-approve mode:      %s", result.get("auto_approve"))
     logger.info("Approved by human:      %s", result.get("human_approved"))
     logger.info("Revision count:         %s", result.get("revision_count"))
     logger.info("Scores:                 %s", result.get("evaluation_scores"))

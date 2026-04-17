@@ -20,12 +20,16 @@ from state import CampaignState
 
 
 def route_after_evaluation(state: CampaignState) -> str:
-    """Route to human_review if approved, back to copywriter if not and revisions remain."""
-    if state.get("approved"):
-        return "human_review"
-    if state.get("revision_count", 0) >= state.get("max_revisions", 4):
-        return "human_review"
-    return "copywriter"
+    """Route after evaluator based on approval and auto-approve settings."""
+    if not state.get("approved"):
+        if state.get("revision_count", 0) >= state.get("max_revisions", 4):
+            return "human_review"
+        return "copywriter"
+
+    if state.get("auto_approve"):
+        return "email_sequence"
+
+    return "human_review"
 
 
 def route_after_human_review(state: CampaignState) -> str:
@@ -58,6 +62,7 @@ def build_graph() -> StateGraph:
         {
             "human_review": "human_review",
             "copywriter": "copywriter",
+            "email_sequence": "email_sequence",
         },
     )
 
