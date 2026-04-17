@@ -1,3 +1,11 @@
+"""LangGraph state machine wiring for the marketing campaign agent.
+
+Defines the LangGraph `StateGraph` that routes state through:
+strategist -> copywriter -> evaluator -> human_review -> finalize.
+
+`build_graph()` compiles the graph into an app invoked by `main.py`.
+"""
+
 from langgraph.graph import StateGraph, END
 
 from state import CampaignState
