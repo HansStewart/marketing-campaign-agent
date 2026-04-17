@@ -1,206 +1,235 @@
-Marketing Campaign Agent – LangGraph · LangChain · Pydantic
-------------------------------------------------------------
+# Marketing Campaign Agent (LangChain + LangGraph + LangSmith)
 
-Overview
+An AI-powered marketing campaign agent built with **LangChain**, **LangGraph**, and **LangSmith**.  
+It generates, evaluates, and human‑reviews multi-step campaign copy (e.g., LinkedIn/Instagram/Facebook/Email) for real estate lead follow-up.
 
-This repository contains a stateful AI workflow for generating and refining marketing campaign copy. The system is implemented as a graph of specialized agents using LangGraph for orchestration, LangChain for prompt and model abstraction, and Pydantic for strict output schemas.
+---
 
-Instead of a single prompt that returns one response, the workflow decomposes the task into distinct roles:
+## Features
 
-- Strategist: derives campaign insights and messaging angles
-- Copywriter: produces multiple copy variants
-- Evaluator: scores quality and decides whether to approve
-- Finalizer: selects the best variant and exposes the output
+- **Multi-step agent workflow** using LangGraph:
+  - Strategist → Copywriter → Evaluator → Human Review → Finalize
+- **LLM-powered nodes** built with LangChain:
+  - `ChatOpenAI` (GPT‑4o‑mini) and `ChatPromptTemplate`
+  - Structured outputs for strategy, copy, and evaluation
+- **Human‑in‑the‑loop review**:
+  - CLI prompt to approve/reject the best variant and provide revision feedback
+- **Multi-platform support** via config and CLI:
+  - `LinkedIn`, `Instagram`, `Facebook`, `Email` with platform‑specific tone
+- **Observability with LangSmith**:
+  - Full LangGraph run tracing (nodes, prompts, tokens, latency) in the LangSmith UI
+- **Developer ergonomics**:
+  - `.env`‑based secret management
+  - `python-dotenv` for local development
+  - `ruff` linting + `pytest` tests
+  - Run outputs saved to `outputs/*.json`
 
-The graph supports iterative improvement via evaluator‑driven revision loops and is designed to be extended with human‑in‑the‑loop checkpoints and external search tools.
+---
 
-High‑Level System Architecture
-------------------------------
+## Tech Stack
 
-Execution Flow
+- **Python** 3.11+
+- **LangChain** – prompt and LLM building blocks (`langchain_openai`, `langchain_core`)
+- **LangGraph** – stateful agent graph orchestration
+- **LangSmith** – tracing and observability
+- **OpenAI** – GPT‑4o‑mini via `openai` + `langchain_openai`
+- **Tooling** – `pytest`, `ruff`, `python-dotenv`
 
-1. Strategist node  
-   Inputs: campaign brief, target audience, offer, platform, tone  
-   Outputs: structured strategic insights and three messaging angles  
-   Responsibility: transform a loose marketing ask into a clear strategic direction that downstream agents can use.
-
-2. Copywriter node  
-   Inputs: strategist outputs, campaign context, optional feedback from prior evaluations  
-   Outputs: exactly three copy variants  
-   Responsibility: generate high‑quality campaign copy aligned with the angles and platform, with strong hooks and clear calls to action.
-
-3. Evaluator node  
-   Inputs: campaign context and the three copy variants  
-   Outputs: numeric scores for each variant, an approval decision, and detailed feedback  
-   Responsibility: act as a creative director, enforce quality thresholds, and provide actionable revision guidance.
-
-4. Finalizer node  
-   Inputs: the best variant and its score  
-   Outputs: a finalized campaign asset and a run summary  
-   Responsibility: present the approved variant and summarize how the system arrived at it.
-
-Graph Orchestration
-
-The workflow is expressed as a directed graph with typed shared state. The core route is:
-
-strategist → copywriter → evaluator → finalize
-
-A conditional edge after the evaluator allows the graph to either finalize or loop back for revision:
-
-- If at least one variant reaches or exceeds the approval score (for example, 8.0 out of 10.0), the graph routes to the finalizer.
-- If quality is below threshold and the revision limit has not been reached, the graph routes back to the copywriter with the evaluator’s feedback.
-- If the maximum number of revisions is reached, the system finalizes using the best available variant.
-
-This design allows the workflow to behave more like a real creative process rather than a single one‑shot generation.
-
-Role of Each Core Technology
-----------------------------
-
-LangGraph
-
-LangGraph is responsible for representing and executing the workflow as a stateful graph. It manages node registration and execution order, conditional routing based on evaluation results, shared state propagation between nodes, and support for human‑in‑the‑loop pauses and resumptions.
-
-LangChain
-
-LangChain provides the model abstraction and compositional building blocks around the LLM. Prompt templates define the system and human messages for each node in a consistent way. Model invocation is encapsulated in simple chains, and structured output helpers connect model responses directly to Pydantic schemas.
-
-Pydantic
-
-Pydantic is used to define strict, typed schemas for each node’s outputs, such as strategy, copy, and evaluation results. Binding the LLM to these schemas enforces predictable structures instead of free‑form text, which removes fragile parsing code and makes downstream graph steps easier to maintain and extend.
-
-Shared State Design
--------------------
-
-The graph operates over a typed shared state object that includes:
-
-- Campaign inputs: campaign_brief, target_audience, offer, platform, tone  
-- Intermediate artifacts: research_insights, messaging_angles, copy_variants  
-- Evaluation data: evaluation_scores, evaluation_feedback, approved  
-- Final outputs: best_variant, best_variant_score  
-- Control fields: revision_count, max_revisions  
-- Metadata: a dictionary used to track which nodes have completed
-
-Each node reads from and writes to this shared state, and conditional routing decisions are made based on it. This makes the workflow explicit and makes it easy to inspect or replay runs with different inputs.
-
-Current Capabilities
---------------------
-
-The system currently supports:
-
-- Multi‑stage campaign generation running through a graph rather than a single prompt
-- High‑level strategy derivation and messaging angle selection
-- Generation of three distinct campaign copy options tailored to a platform and audience
-- Evaluation of each variant with numeric scoring and approval logic
-- One or more revision loops based on evaluator feedback, up to a configurable maximum
-- Clean final output selection and run summary logging
-
-The default configuration targets real estate agents in Dallas, promoting a 24/7 AI lead follow‑up system for LinkedIn campaigns, but the inputs can be adjusted to target other industries, offers, and channels.
-
-
-Human‑In‑The‑Loop Review
-------------------------
-
-The workflow includes a human review checkpoint between the evaluator and the finalizer. The complete flow is:
-
-strategist → copywriter → evaluator → human_review → finalize
-
-The human review node:
-
-- Presents the best variant and evaluation scores to a human reviewer.
-- Accepts an approve or reject decision along with optional revision feedback.
-- Routes accordingly: if approved, the graph proceeds to finalize; if rejected, the human feedback is attached to shared state and the graph routes back to the copywriter for another revision cycle.
-- Respects the max_revisions guardrail, which forces finalization if the revision limit is reached regardless of human approval status.
-
-This pattern mirrors real creative and compliance workflows where AI can draft and iterate, but humans retain control over what is ultimately published. It demonstrates LangGraph's pause‑and‑resume capability as a first‑class orchestration feature.
-
-Project Structure
------------------
-
-Top‑level layout:
-
-marketing-campaign-agent  
-  .env  
-  state.py  
-  schemas.py  
-  nodes.py  
-  graph.py  
-  main.py  
-  README.md  
-
-state.py defines the typed shared state for the graph.  
-schemas.py defines Pydantic models for structured outputs.  
-nodes.py implements the strategist, copywriter, evaluator, and finalizer nodes.  
-graph.py defines the LangGraph graph, nodes, and conditional routing.  
-main.py initializes the graph, seeds the initial state, and runs a sample campaign.  
-.env stores API keys and configuration values loaded at runtime.
-
-Execution and Example Output
-----------------------------
-
-Running the entrypoint script launches a full campaign generation run. A typical run produces:
-
-- an approval decision  
-- a revision count  
-- a list of scores for each variant  
-- the best score and corresponding copy  
-- metadata indicating which nodes completed
-
-The console summary shows the final approved variant and the numeric evaluation backing that decision, demonstrating the system’s ability to reason over multiple options and select the best one instead of returning the first draft.
-
-Rationale
----------
-
-The project is designed to demonstrate:
-
-- graph‑based orchestration for agent workflows  
-- clear separation between orchestration, model interaction, and data validation  
-- evaluator‑driven feedback loops and revision logic  
-- realistic marketing‑campaign behavior grounded in a specific business use case
-
-It serves as a reusable pattern for building stateful AI workflows around strategy, content generation, and automated quality control.
+---
 
 ## Setup
 
-1. Create and activate a virtual environment
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/HansStewart/marketing-campaign-agent.git
+cd marketing-campaign-agent
+```
+
+### 2. Create and activate a virtual environment
 
 ```bash
 python -m venv venv
-source venv/Scripts/activate
+source venv/Scripts/activate  # Windows Git Bash / PowerShell
+# or: source venv/bin/activate  # macOS / Linux
 ```
 
-2. Install dependencies
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Create a `.env` file in the project root
+### 4. Environment variables
+
+Create a `.env` file in the project root (same folder as `main.py`) with:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
+LANGSMITH_API_KEY=your_langsmith_api_key_here
+LANGSMITH_TRACING=true
+LANGSMITH_PROJECT=marketing-campaign-agent
 ```
 
-4. Run the app
+For safety, the repo includes an example file:
 
-```bash
-python main.py
+```env
+# .env.example
+OPENAI_API_KEY=your_openai_api_key_here
+LANGSMITH_API_KEY=your_langsmith_api_key_here
+LANGSMITH_TRACING=true
+LANGSMITH_PROJECT=marketing-campaign-agent
 ```
+
+Copy this template and fill in your real keys for local use only.
+
+---
 
 ## Usage
 
-Run the app:
+From the project root (with the virtualenv activated):
 
 ```bash
 python main.py
 ```
 
-When you see:
+You’ll see the agent run through strategist, copywriter, and evaluator nodes, then pause for human input:
 
 ```text
-Decision - approve or reject? (a/r):
+HUMAN REVIEW REQUIRED
+...
+Decision — approve or reject? (a/r):
 ```
 
 Type:
 
-- `a` to approve the selected variant
-- `r` to reject it
+- `a` to approve the best variant
+- `r` to reject and provide revision feedback
+
+After approval, the agent prints a run summary and saves the result to `outputs/run-YYYYMMDD-HHMMSS.json`.
+
+---
+
+## CLI Options
+
+You can customize the campaign without editing code using CLI arguments:
+
+```bash
+python main.py --help
+```
+
+Example:
+
+```bash
+python main.py \
+  --platform Instagram \
+  --audience "Real estate investors in Austin, Texas" \
+  --offer "AI follow-up that nurtures leads across SMS and email"
+```
+
+Arguments:
+
+- `--platform` – one of `LinkedIn`, `Instagram`, `Facebook`, `Email`
+- `--audience` – target audience description
+- `--offer` – campaign offer description
+- `--brief` (if enabled) – full campaign brief text
+
+Platform‑specific tone is configured in `config.py`.
+
+---
+
+## How It Works (Architecture)
+
+The agent is implemented as a **LangGraph state machine**:
+
+1. **Strategist node (`strategist_node`)**
+   - Uses LangChain `ChatPromptTemplate` + `ChatOpenAI`
+   - Generates research insights and 3 differentiated messaging angles
+
+2. **Copywriter node (`copywriter_node`)**
+   - Writes 3 campaign copy variants based on the brief, angles, and prior feedback
+   - Enforces strict style rules (no exclamation marks, realistic tone, B2B focus)
+
+3. **Evaluator node (`evaluator_node`)**
+   - Scores each variant across multiple dimensions (hook, clarity, relevance, offer, CTA)
+   - Picks the best variant and decides whether to approve or request revision
+
+4. **Human Review node (`human_review_node`)**
+   - Displays the best variant and scores in the terminal
+   - Lets you approve (`a`) or reject (`r`) with feedback
+
+5. **Finalize node (`finalize_node`)**
+   - Prints a summary and marks the run as finalized
+
+The graph orchestration is defined in `graph.py`, state shape in `state.py`, and structured outputs in `schemas.py`.
+
+---
+
+## Observability with LangSmith
+
+This project is instrumented for LangSmith tracing:
+
+- Every run appears as a LangGraph trace in the LangSmith UI.
+- You can inspect:
+  - Input/output for each node
+  - LLM prompts and responses
+  - Tokens, latency, and errors (if any)
+- Project name: `marketing-campaign-agent` (configured via `LANGSMITH_PROJECT`)
+
+To view traces:
+
+1. Go to https://smith.langchain.com
+2. Open the `marketing-campaign-agent` project
+3. Click into a run to see the full node tree and details
+
+---
+
+## Development
+
+### Linting
+
+```bash
+ruff check .
+```
+
+### Tests
+
+```bash
+pytest
+```
+
+Example tests:
+
+- `tests/test_smoke.py` – ensures `CampaignState` initializes correctly and keys behave as expected.
+
+### Configuration
+
+All configurable defaults live in `config.py`:
+
+- `MODEL_NAME`, `MODEL_TEMPERATURE`
+- `DEFAULT_MAX_REVISIONS`, `DEFAULT_PLATFORM`, `DEFAULT_LOCATION`
+- `SUPPORTED_PLATFORMS`, `PLATFORM_TONE_MAP`
+
+---
+
+## Project Status
+
+This repo currently demonstrates:
+
+- ✅ LangChain for LLM, prompts, and structured outputs
+- ✅ LangGraph for multi-node agent workflows
+- ✅ LangSmith for full tracing and observability
+- ✅ Multi-platform campaign support via CLI and config
+- ✅ Clean code via `ruff` and `pytest`
+
+Planned enhancements:
+
+- Additional campaign types (email sequences, ads, landing page copy)
+- More robust evaluation metrics
+- Deeper testing for each node and edge cases
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
