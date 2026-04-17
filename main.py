@@ -64,12 +64,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--offer",
-        default="A 24/7 AI lead follow-up system that responds in under 60 seconds and books appointments automatically",
+        default=(
+            "A 24/7 AI lead follow-up system that responds in under 60 seconds "
+            "and books appointments automatically"
+        ),
         help="Campaign offer description",
     )
     parser.add_argument(
         "--brief",
-        default="Create a high-converting campaign promoting an AI lead follow-up system for real estate agents.",
+        default=(
+            "Create a high-converting campaign promoting an AI lead "
+            "follow-up system for real estate agents."
+        ),
         help="Campaign brief",
     )
     return parser.parse_args()
@@ -105,6 +111,9 @@ def run_campaign_agent():
         "approved": False,
         "human_approved": None,
         "human_feedback": None,
+        "human_reject_reason": None,
+        "human_reject_severity": None,
+        "human_tags": None,
         "best_variant": None,
         "best_variant_score": None,
         "email_sequence": None,

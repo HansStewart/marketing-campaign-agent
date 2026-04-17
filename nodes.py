@@ -82,9 +82,30 @@ def copywriter_node(state: CampaignState) -> Dict[str, Any]:
 
     feedback_section = ""
     if state.get("human_feedback"):
-        feedback_section = f"\n\nRevision feedback to incorporate: {state['human_feedback']}"
+        structured_notes = []
+        if state.get("human_reject_reason"):
+            structured_notes.append(
+                f"Primary human rejection reason: {state['human_reject_reason']}"
+            )
+        if state.get("human_reject_severity"):
+            structured_notes.append(
+                f"Rejection severity: {state['human_reject_severity']}"
+            )
+        if state.get("human_tags"):
+            structured_notes.append(
+                f"Human tags: {', '.join(state['human_tags'])}"
+            )
+
+        structured_text = "\n".join(structured_notes)
+        feedback_section = (
+            f"\n\nHuman revision feedback to incorporate:\n"
+            f"{structured_text}\n"
+            f"Free-text notes: {state['human_feedback']}"
+        )
     elif state.get("evaluation_feedback"):
-        feedback_section = f"\n\nEvaluation feedback to incorporate: {state['evaluation_feedback']}"
+        feedback_section = (
+            f"\n\nEvaluation feedback to incorporate: {state['evaluation_feedback']}"
+        )
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are an expert marketing copywriter specializing in B2B campaigns.
@@ -202,24 +223,59 @@ def human_review_node(state: CampaignState) -> Dict[str, Any]:
 
     decision = input("\nDecision — approve or reject? (a/r): ").strip().lower()
 
+    metadata = dict(state.get("metadata", {}))
+    metadata["human_review_completed"] = True
+
     if decision == "a":
         print("\nVariant approved by reviewer.")
-        metadata = dict(state.get("metadata", {}))
-        metadata["human_review_completed"] = True
         metadata["human_decision"] = "approved"
+        metadata["final_label"] = "approved"
+
         return {
             "human_approved": True,
             "human_feedback": None,
+            "human_reject_reason": None,
+            "human_reject_severity": None,
+            "human_tags": None,
             "metadata": metadata,
         }
 
+    valid_reasons = {"hook", "clarity", "relevance", "offer", "cta", "other"}
+    valid_severities = {"low", "med", "high"}
+
+    reject_reason = input(
+        "Main reason for rejection (hook/clarity/relevance/offer/cta/other): "
+    ).strip().lower()
+    while reject_reason not in valid_reasons:
+        reject_reason = input(
+            "Invalid choice. Enter one of: hook, clarity, relevance, offer, cta, other: "
+        ).strip().lower()
+
+    reject_severity = input("Severity (low/med/high): ").strip().lower()
+    while reject_severity not in valid_severities:
+        reject_severity = input(
+            "Invalid choice. Enter one of: low, med, high: "
+        ).strip().lower()
+
+    raw_tags = input(
+        "Optional tags (comma-separated, e.g. too-long, weak-cta, generic): "
+    ).strip()
+    tags = [tag.strip() for tag in raw_tags.split(",") if tag.strip()] if raw_tags else []
+
     feedback = input("Enter revision feedback: ").strip()
-    metadata = dict(state.get("metadata", {}))
-    metadata["human_review_completed"] = True
+
     metadata["human_decision"] = "rejected"
+    metadata["final_label"] = "rejected"
+    metadata["human_reject_reason"] = reject_reason
+    metadata["human_reject_severity"] = reject_severity
+    metadata["human_tags"] = tags
+
     return {
         "human_approved": False,
         "human_feedback": feedback,
+        "human_reject_reason": reject_reason,
+        "human_reject_severity": reject_severity,
+        "human_tags": tags,
         "revision_count": state.get("revision_count", 0) + 1,
         "metadata": metadata,
     }
@@ -300,6 +356,9 @@ def finalize_node(state: CampaignState) -> Dict[str, Any]:
     print(f"Revision Count: {state.get('revision_count')}")
     print(f"Scores:         {state.get('evaluation_scores')}")
     print(f"Best Score:     {state.get('best_variant_score')}")
+    print(f"Reject Reason:  {state.get('human_reject_reason')}")
+    print(f"Severity:       {state.get('human_reject_severity')}")
+    print(f"Tags:           {state.get('human_tags')}")
     print("-" * 80)
     print("BEST VARIANT:\n")
     print(state.get("best_variant"))
