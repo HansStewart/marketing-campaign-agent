@@ -7,6 +7,11 @@ class CampaignState(TypedDict):
     offer: str
     platform: str
     tone: str
+    industry: Optional[str]
+    persona_context: Optional[str]
+    output_formats: Optional[List[str]]
+    num_variants: Optional[int]
+    file_context: Optional[str]
 
     research_insights: Optional[List[str]]
     messaging_angles: Optional[List[str]]

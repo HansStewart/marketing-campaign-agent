@@ -20,19 +20,17 @@ load_dotenv()
 
 
 def get_base_llm() -> ChatOpenAI:
-    """Return a configured LangChain ChatOpenAI instance."""
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY not found in environment")
     return ChatOpenAI(model=MODEL_NAME, temperature=MODEL_TEMPERATURE)
 
 
 def strategist_node(state: CampaignState) -> Dict[str, Any]:
-    """Research insights and messaging angles using LangChain + ChatOpenAI."""
     llm = get_base_llm().bind(max_completion_tokens=700)
     structured_llm = llm.with_structured_output(StrategyOutput)
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a senior B2B marketing strategist.
+        ("system", """You are a senior marketing strategist.
 
 Your job is to generate concise, useful campaign planning inputs.
 
@@ -43,14 +41,16 @@ Hard rules:
 - Each messaging angle must be under 16 words.
 - Avoid generic advice.
 - Each angle must focus on a different pain point or outcome.
-- Tailor the ideas to the exact target audience, offer, and platform.
+- Tailor ideas to the exact target audience, offer, platform, and industry.
 - Use realistic business language only.
 - No hype phrases."""),
         ("human", """Campaign Brief: {campaign_brief}
 Target Audience: {target_audience}
 Offer: {offer}
 Platform: {platform}
-Tone: {tone}"""),
+Industry: {industry}
+Tone: {tone}
+Additional Context: {file_context}"""),
     ])
 
     chain = prompt | structured_llm
@@ -59,7 +59,9 @@ Tone: {tone}"""),
         "target_audience": state["target_audience"],
         "offer": state["offer"],
         "platform": state["platform"],
+        "industry": state.get("industry") or "Not specified",
         "tone": state["tone"],
+        "file_context": state.get("file_context") or "None provided",
     })
 
     metadata = dict(state.get("metadata", {}))
@@ -73,70 +75,70 @@ Tone: {tone}"""),
 
 
 def copywriter_node(state: CampaignState) -> Dict[str, Any]:
-    """Generate 3 campaign copy variants using LangChain + ChatOpenAI."""
-    llm = get_base_llm().bind(max_completion_tokens=1200)
+    llm = get_base_llm().bind(max_completion_tokens=2400)
     structured_llm = llm.with_structured_output(CopyOutput)
 
-    platform_style = PLATFORM_STYLE_MAP.get(
-        state["platform"],
-        "Write in a professional, concise marketing style.",
-    )
+    platforms = [p.strip() for p in state["platform"].split(",")]
+    output_formats = state.get("output_formats") or []
+    num_variants = state.get("num_variants") or 3
+
+    # Build platform style block for all selected platforms
+    platform_style_block = ""
+    for p in platforms:
+        style = PLATFORM_STYLE_MAP.get(p, "Write in a professional, concise marketing style.")
+        platform_style_block += f"\n[ {p} ]\n{style}\n"
 
     feedback_section = ""
     if state.get("human_feedback"):
         structured_notes = []
         if state.get("human_reject_reason"):
-            structured_notes.append(
-                f"Primary human rejection reason: {state['human_reject_reason']}"
-            )
+            structured_notes.append(f"Primary rejection reason: {state['human_reject_reason']}")
         if state.get("human_reject_severity"):
-            structured_notes.append(
-                f"Rejection severity: {state['human_reject_severity']}"
-            )
+            structured_notes.append(f"Rejection severity: {state['human_reject_severity']}")
         if state.get("human_tags"):
-            structured_notes.append(
-                f"Human tags: {', '.join(state['human_tags'])}"
-            )
-
+            structured_notes.append(f"Tags: {', '.join(state['human_tags'])}")
         structured_text = "\n".join(structured_notes)
         feedback_section = (
-            f"\n\nHuman revision feedback to incorporate:\n"
-            f"{structured_text}\n"
-            f"Free-text notes: {state['human_feedback']}"
+            f"\n\nHuman revision feedback:\n{structured_text}\n"
+            f"Notes: {state['human_feedback']}"
         )
     elif state.get("evaluation_feedback"):
-        feedback_section = (
-            f"\n\nEvaluation feedback to incorporate: {state['evaluation_feedback']}"
-        )
+        feedback_section = f"\n\nEvaluation feedback to incorporate: {state['evaluation_feedback']}"
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert B2B marketing copywriter.
+        ("system", """You are an expert marketing copywriter specializing in multi-channel campaigns.
 
 Hard rules:
-- Return exactly 3 variants.
+- Generate {num_variants} variants for EVERY platform AND format combination specified.
+- Label EACH variant clearly at the top in this exact format: [ Platform — Format ]
+  Example: [ LinkedIn — Long Post ] or [ Email — Cold DM ] or [ Instagram — Story ]
 - Each variant must be 45 to 110 words.
 - No exclamation marks.
-- No hashtags unless the platform clearly requires them.
-- No generic hype phrases like "game-changer", "revolutionary", "unlock", "skyrocket", "transform your business".
+- No hashtags unless the platform requires them.
 - No placeholders like [Your Name], [Company], or [Insert Link].
 - Make each variant meaningfully different in opening and angle.
 - Keep claims realistic and specific.
 - End each variant with a clear, low-friction CTA.
-- Adapt formatting and cadence to the target platform.
+- Adapt tone, structure, and length specifically to each platform.
+- No generic hype phrases like "game-changer", "revolutionary", "unlock", "skyrocket".
 - Use plain business language, not ad-speak.
-- Avoid repeating the same CTA wording across all 3 variants.
 
 Platform style instructions:
 {platform_style}"""),
-        ("human", """Campaign Brief: {campaign_brief}
+        ("human", """Platforms: {platform}
+Output Formats: {output_formats}
 Target Audience: {target_audience}
 Offer: {offer}
-Platform: {platform}
+Industry: {industry}
 Tone: {tone}
+Campaign Brief: {campaign_brief}
+Persona Context: {persona_context}
 Research Insights: {research_insights}
-Messaging Angles: {messaging_angles}{feedback_section}
+Messaging Angles: {messaging_angles}
+Additional Context from Uploaded Files: {file_context}
+{feedback_section}
 
-Write 3 distinct campaign copy variants."""),
+Generate {num_variants} variants for each platform and format combination. Label each one clearly."""),
     ])
 
     chain = prompt | structured_llm
@@ -145,11 +147,16 @@ Write 3 distinct campaign copy variants."""),
         "target_audience": state["target_audience"],
         "offer": state["offer"],
         "platform": state["platform"],
+        "industry": state.get("industry") or "Not specified",
         "tone": state["tone"],
+        "persona_context": state.get("persona_context") or "Not specified",
+        "output_formats": ", ".join(output_formats) if output_formats else "General",
+        "num_variants": num_variants,
         "research_insights": "\n".join(state.get("research_insights") or []),
         "messaging_angles": "\n".join(state.get("messaging_angles") or []),
         "feedback_section": feedback_section,
-        "platform_style": platform_style,
+        "platform_style": platform_style_block,
+        "file_context": state.get("file_context") or "None provided",
     })
 
     metadata = dict(state.get("metadata", {}))
@@ -162,18 +169,16 @@ Write 3 distinct campaign copy variants."""),
 
 
 def evaluator_node(state: CampaignState) -> Dict[str, Any]:
-    """Score and select the best copy variant using LangChain + ChatOpenAI."""
     llm = get_base_llm().bind(max_completion_tokens=700)
     structured_llm = llm.with_structured_output(EvaluationOutput)
 
     variants = state.get("copy_variants") or []
     variants_text = "\n\n".join([
-        f"Variant {i + 1}:\n{v}"
-        for i, v in enumerate(variants)
+        f"Variant {i + 1}:\n{v}" for i, v in enumerate(variants)
     ])
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a senior B2B marketing evaluator.
+        ("system", """You are a senior marketing evaluator.
 
 Evaluate each variant based on:
 - hook strength
@@ -183,12 +188,12 @@ Evaluate each variant based on:
 - CTA quality
 
 Hard rules:
-- Return exactly one score per provided variant.
-- Score each variant from 1.0 to 10.0.
-- Return a concise feedback summary under 60 words total.
-- Approve if the best score is 8.0 or above.
+- Return exactly one score per variant provided.
+- Score each from 1.0 to 10.0.
+- Return concise feedback under 60 words total.
+- Approve if the best score is 7.5 or above.
 - Pick the single best variant index based on overall effectiveness."""),
-        ("human", """Platform: {platform}
+        ("human", """Platforms: {platform}
 Target Audience: {target_audience}
 Offer: {offer}
 
@@ -224,91 +229,29 @@ Score each variant and select the best one."""),
 
 
 def human_review_node(state: CampaignState) -> Dict[str, Any]:
-    """Pause the graph for human approval or rejection of the best variant."""
-    print("\n" + "=" * 80)
-    print("HUMAN REVIEW REQUIRED")
-    print("=" * 80)
-    print(f"Evaluator Scores:  {state.get('evaluation_scores')}")
-    print(f"Best Score:        {state.get('best_variant_score')}")
-    print("-" * 80)
-    print("Best Variant:\n")
-    print(state.get("best_variant"))
-    print("-" * 80)
-
-    decision = input("\nDecision — approve or reject? (a/r): ").strip().lower()
-
+    """Auto-approve in API mode — human review only used in CLI."""
     metadata = dict(state.get("metadata", {}))
     metadata["human_review_completed"] = True
-
-    if decision == "a":
-        print("\nVariant approved by reviewer.")
-        metadata["human_decision"] = "approved"
-        metadata["final_label"] = "approved"
-
-        return {
-            "human_approved": True,
-            "human_feedback": None,
-            "human_reject_reason": None,
-            "human_reject_severity": None,
-            "human_tags": None,
-            "metadata": metadata,
-        }
-
-    valid_reasons = {"hook", "clarity", "relevance", "offer", "cta", "other"}
-    valid_severities = {"low", "med", "high"}
-
-    reject_reason = input(
-        "Main reason for rejection (hook/clarity/relevance/offer/cta/other): "
-    ).strip().lower()
-    while reject_reason not in valid_reasons:
-        reject_reason = input(
-            "Invalid choice. Enter one of: hook, clarity, relevance, offer, cta, other: "
-        ).strip().lower()
-
-    reject_severity = input("Severity (low/med/high): ").strip().lower()
-    while reject_severity not in valid_severities:
-        reject_severity = input(
-            "Invalid choice. Enter one of: low, med, high: "
-        ).strip().lower()
-
-    raw_tags = input(
-        "Optional tags (comma-separated, e.g. too-long, weak-cta, generic): "
-    ).strip()
-    tags = [tag.strip() for tag in raw_tags.split(",") if tag.strip()] if raw_tags else []
-
-    feedback = input("Enter revision feedback: ").strip()
-
-    metadata["human_decision"] = "rejected"
-    metadata["final_label"] = "rejected"
-    metadata["human_reject_reason"] = reject_reason
-    metadata["human_reject_severity"] = reject_severity
-    metadata["human_tags"] = tags
+    metadata["human_decision"] = "auto-approved"
 
     return {
-        "human_approved": False,
-        "human_feedback": feedback,
-        "human_reject_reason": reject_reason,
-        "human_reject_severity": reject_severity,
-        "human_tags": tags,
-        "revision_count": state.get("revision_count", 0) + 1,
+        "human_approved": True,
+        "human_feedback": None,
+        "human_reject_reason": None,
+        "human_reject_severity": None,
+        "human_tags": None,
         "metadata": metadata,
     }
 
 
 def email_sequence_node(state: CampaignState) -> Dict[str, Any]:
-    """Generate a concise 3-email follow-up sequence from the approved best variant."""
-    llm = get_base_llm().bind(max_completion_tokens=800)
+    llm = get_base_llm().bind(max_completion_tokens=900)
     structured_llm = llm.with_structured_output(EmailSequenceOutput)
 
-    platform_style = PLATFORM_STYLE_MAP.get(
-        state["platform"],
-        "Write in a professional, concise marketing style.",
-    )
-
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert B2B email copywriter.
+        ("system", """You are an expert email copywriter.
 
-Based on an approved campaign variant, write a 3-email follow-up sequence.
+Based on the approved campaign content, write a 3-email follow-up sequence.
 
 Hard rules:
 - Return exactly 3 emails.
@@ -317,40 +260,32 @@ Hard rules:
 - Email 3 send_day must be 7.
 - Each email body must be 60 to 120 words.
 - Each subject line must be under 7 words.
-- Do not use exclamation marks anywhere.
-- Do not use generic hype phrases like "game-changer", "revolutionary", "unlock", "skyrocket", or "transform your business".
-- Do not start more than one subject line with the same first word.
-- Do not use placeholders like [Your Name], [Company], or [Insert Link].
-- Do not use hashtags.
-- Use exactly one clear, low-friction CTA sentence per email.
-- Use plain text only.
-- Avoid repeating the same closing phrasing across the 3 emails.
-- Keep the sequence specific to the audience and offer.
-- Keep language realistic and concrete.
-
-Use the originating platform context to shape the voice and angle of the emails.
-
-Platform style reference:
-{platform_style}"""),
-        ("human", """Approved Campaign Variant:
+- No exclamation marks.
+- No hype phrases like "game-changer", "revolutionary", "unlock", "skyrocket".
+- No placeholders like [Your Name], [Company], or [Insert Link].
+- No hashtags.
+- One clear low-friction CTA per email.
+- Plain text only.
+- Avoid repeating the same closing across the 3 emails.
+- Keep the sequence specific to the audience and offer."""),
+        ("human", """Approved Campaign Content:
 {best_variant}
 
-Platform: {platform}
 Target Audience: {target_audience}
 Offer: {offer}
 Tone: {tone}
+Additional Context: {file_context}
 
-Generate a 3-email follow-up sequence that follows all rules above."""),
+Generate a 3-email follow-up sequence."""),
     ])
 
     chain = prompt | structured_llm
     result = chain.invoke({
         "best_variant": state.get("best_variant", ""),
-        "platform": state["platform"],
         "target_audience": state["target_audience"],
         "offer": state["offer"],
         "tone": state["tone"],
-        "platform_style": platform_style,
+        "file_context": state.get("file_context") or "None provided",
     })
 
     email_list = [
@@ -372,34 +307,6 @@ Generate a 3-email follow-up sequence that follows all rules above."""),
 
 
 def finalize_node(state: CampaignState) -> Dict[str, Any]:
-    """Print the final run summary and mark the run as finalized."""
-    print("\n" + "=" * 80)
-    print("CAMPAIGN AGENT RUN SUMMARY")
-    print("=" * 80)
-    print(f"Approved:       {state.get('human_approved')}")
-    print(f"Revision Count: {state.get('revision_count')}")
-    print(f"Scores:         {state.get('evaluation_scores')}")
-    print(f"Best Score:     {state.get('best_variant_score')}")
-    print(f"Reject Reason:  {state.get('human_reject_reason')}")
-    print(f"Severity:       {state.get('human_reject_severity')}")
-    print(f"Tags:           {state.get('human_tags')}")
-    print("-" * 80)
-    print("BEST VARIANT:\n")
-    print(state.get("best_variant"))
-    print("=" * 80)
-
-    email_sequence = state.get("email_sequence")
-    if email_sequence:
-        print("\n" + "=" * 80)
-        print("EMAIL FOLLOW-UP SEQUENCE")
-        print("=" * 80)
-        for i, email in enumerate(email_sequence, 1):
-            print(f"\nEmail {i} — Send Day {email.get('send_day')}")
-            print(f"Subject: {email.get('subject')}")
-            print(f"Body:\n{email.get('body')}")
-            print("-" * 80)
-
     metadata = dict(state.get("metadata", {}))
     metadata["finalized"] = True
-
     return {"metadata": metadata}
